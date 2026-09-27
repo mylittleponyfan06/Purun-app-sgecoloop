@@ -5,6 +5,11 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { currentReading, historicalReadings, healthTrend, plantAssessment } from "../lib/mock-data";
 import { assessPlant } from "../lib/plant-rules";
 import type { PlantAssessment, SensorReading } from "../lib/types";
+import type { CarePayload } from "../lib/care-summary";
+import { getCarePayload } from "../lib/get-care-payload";
+import type { AICheck, AIStatus } from "../lib/ai-status";
+
+let pendingExplanation: AbortController | null = null;
 
 export const simulationFields = [
   { key: "lightLux", label: "Light intake", unit: "lux", min: 0, max: 40000, step: 500 },
@@ -25,10 +30,31 @@ export const scenarios = {
 } satisfies Record<string, SimulationValues>;
 
 type HistoryEntry = { reading: SensorReading; score: number };
+// Minutes, preserving the existing persisted setting's units. Zero means manual.
+export const autoReadOptions = [
+  { minutes: 0, label: "Manual" },
+  { minutes: 0.25, label: "Every 15 seconds (demo)" },
+  { minutes: 0.5, label: "Every 30 seconds (demo)" },
+  { minutes: 1, label: "Every 60 seconds (demo)" },
+  { minutes: 60, label: "Every 1 hour (final-product setting)" },
+] as const;
+function validInterval(value: unknown): value is number {
+  return autoReadOptions.some((option) => option.minutes === value);
+}
 type PurunState = {
   currentReading: SensorReading;
   currentAssessment: PlantAssessment;
+  carePayload: CarePayload | null;
+  selectedAIModel: string;
+  setAIModel: (model: string) => void;
+  aiCheck: AICheck | null;
+  enhanceCareSummary: (enabled: boolean) => Promise<void>;
   autoReadInterval: number;
+  autoReadEnabled: boolean;
+  nextReadAt: number | null;
+  setAutoReadInterval: (minutes: number) => void;
+  setAutoReadEnabled: (enabled: boolean) => void;
+  runAutoRead: (now: number) => void;
   isSimulationModalOpen: boolean;
   isSimulationMode: boolean;
   hasHydrated: boolean;
@@ -71,7 +97,44 @@ function warnStorage() {
 export const usePurunStore = create<PurunState>()(persist((set, get) => ({
   currentReading,
   currentAssessment: plantAssessment,
-  autoReadInterval: 60, // Minutes; reserved setting, no scheduler runs.
+  carePayload: null,
+  selectedAIModel: "",
+  aiCheck: null,
+  setAIModel: (model) => {
+    if (!/^[a-zA-Z0-9._-]{0,100}$/.test(model)) return;
+    pendingExplanation?.abort();
+    pendingExplanation = null;
+    set({ selectedAIModel: model, aiCheck: null, carePayload: null });
+  },
+  enhanceCareSummary: async (enabled) => {
+    pendingExplanation?.abort();
+    const controller = new AbortController();
+    pendingExplanation = controller;
+    const { currentReading: reading, currentAssessment: assessment, selectedAIModel: model } = get();
+    set({ aiCheck: { status: enabled ? "loading" : "disabled", model, checkedAt: null } });
+    let status: AIStatus = "network-error";
+    const care = await getCarePayload(reading, assessment, enabled, controller.signal, { model: model || undefined, onStatus: (value) => { status = value; } });
+    if (!controller.signal.aborted && get().currentReading.id === reading.id && get().selectedAIModel === model) set({ carePayload: care, aiCheck: { status, model, checkedAt: new Date().toISOString() } });
+    if (pendingExplanation === controller) pendingExplanation = null;
+  },
+  autoReadInterval: 60,
+  autoReadEnabled: false,
+  nextReadAt: null,
+  setAutoReadInterval: (minutes) => {
+    if (!validInterval(minutes)) throw new RangeError("Invalid auto-read interval");
+    const enabled = get().autoReadEnabled && minutes > 0;
+    set({ autoReadInterval: minutes, autoReadEnabled: enabled, nextReadAt: enabled ? Date.now() + minutes * 60000 : null });
+  },
+  setAutoReadEnabled: (enabled) => {
+    const active = enabled && get().autoReadInterval > 0;
+    set({ autoReadEnabled: active, nextReadAt: active ? Date.now() + get().autoReadInterval * 60000 : null });
+  },
+  runAutoRead: (now) => {
+    const state = get();
+    if (!state.hasHydrated || !state.autoReadEnabled || !state.nextReadAt || now < state.nextReadAt || state.isSimulationModalOpen) return;
+    // One fresh reading after a delayed browser timer; never fabricate missed reads.
+    state.applySimulatedReading(state.currentReading);
+  },
   isSimulationModalOpen: false,
   isSimulationMode: false,
   hasHydrated: false,
@@ -87,9 +150,12 @@ export const usePurunStore = create<PurunState>()(persist((set, get) => ({
       id: `simulation-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${get().history.length}`}`, timestamp: new Date().toISOString(),
     };
     const assessment = assessPlant(reading);
+    pendingExplanation?.abort();
+    pendingExplanation = null;
     const cutoff = Date.parse(reading.timestamp) - 24 * 3600000;
     const history = [...get().history.filter(({ reading }) => Date.parse(reading.timestamp) >= cutoff), { reading, score: assessment.score }].slice(-120);
-    set({ currentReading: reading, currentAssessment: assessment, history, isSimulationMode: true, isSimulationModalOpen: false });
+    set({ currentReading: reading, currentAssessment: assessment, carePayload: null, aiCheck: null, history, isSimulationMode: true, isSimulationModalOpen: false,
+      nextReadAt: get().autoReadEnabled ? Date.parse(reading.timestamp) + get().autoReadInterval * 60000 : null });
   },
 }), {
   name: "purun-demo-state",
@@ -100,7 +166,7 @@ export const usePurunStore = create<PurunState>()(persist((set, get) => ({
     removeItem: (name) => { try { localStorage.removeItem(name); } catch { warnStorage(); } },
   })),
   skipHydration: true,
-  partialize: ({ currentReading, currentAssessment, autoReadInterval, isSimulationMode, history }) => ({ currentReading, currentAssessment, autoReadInterval, isSimulationMode, history }),
+  partialize: ({ currentReading, currentAssessment, autoReadInterval, autoReadEnabled, isSimulationMode, history, selectedAIModel }) => ({ currentReading, currentAssessment, autoReadInterval, autoReadEnabled, isSimulationMode, history, selectedAIModel }),
   merge: (saved, current) => {
     try {
       const state = record(saved);
@@ -118,7 +184,12 @@ export const usePurunStore = create<PurunState>()(persist((set, get) => ({
         ...current, currentReading: reading, history: restoredHistory, isSimulationMode: state.isSimulationMode,
         // Recompute the active assessment rather than trusting an edited saved score.
         currentAssessment: assessment,
-        autoReadInterval: typeof state.autoReadInterval === "number" && Number.isFinite(state.autoReadInterval) && state.autoReadInterval > 0 ? state.autoReadInterval : 60,
+        carePayload: null,
+        aiCheck: null,
+        selectedAIModel: typeof state.selectedAIModel === "string" && /^[a-zA-Z0-9._-]{1,100}$/.test(state.selectedAIModel) ? state.selectedAIModel : "",
+        autoReadInterval: validInterval(state.autoReadInterval) ? state.autoReadInterval : 60,
+        autoReadEnabled: state.autoReadEnabled === true && validInterval(state.autoReadInterval) && state.autoReadInterval > 0,
+        nextReadAt: null,
       };
     } catch { return current; }
   },

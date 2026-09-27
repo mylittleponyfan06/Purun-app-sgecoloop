@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import AppShell from "@/components/AppShell";
+import Loading from "./loading";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Purun Care", template: "%s | Purun Care" },
-  description: "A little care for a thriving wetland. Your Purun smart wetland-care station.",
+  title: { default: "Purun Loop", template: "%s | Purun Loop" },
+  description: "A little care for a thriving wetland. Purun Loop, your smart wetland-care station.",
 };
 
 export const viewport: Viewport = {
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <Suspense fallback={<Loading />}><AppShell>{children}</AppShell></Suspense>
       </body>
     </html>
   );

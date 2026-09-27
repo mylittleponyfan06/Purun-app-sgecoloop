@@ -2,9 +2,12 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { usePurunStore } from "@/store/usePurunStore";
+import { useCareAIEnabled } from "./CareAIProvider";
+import LeafLoader from "./LeafLoader";
 
 export default function CheckNowButton() {
   const ready = usePurunStore((state) => state.hasHydrated);
+  const aiEnabled = useCareAIEnabled();
   const [feedback, setFeedback] = useState<"idle" | "checking" | "success" | "error">("idle");
   const pendingCheck = useRef<number | null>(null);
   const feedbackId = useId();
@@ -36,6 +39,8 @@ export default function CheckNowButton() {
       try {
         state.applySimulatedReading(state.currentReading);
         setFeedback("success");
+        // Local assessment is already visible; an optional rewrite cannot block it.
+        void usePurunStore.getState().enhanceCareSummary(aiEnabled);
       } catch {
         setFeedback("error");
       }
@@ -44,9 +49,9 @@ export default function CheckNowButton() {
 
   return (
     <div className="check-control">
-      <div className={`check-sunburst${checking ? " is-checking" : ""}`}>
+      <div className="check-sunburst">
         <button className="check-now-button" type="button" onClick={checkNow} disabled={!ready || checking} aria-label="CHECK NOW" aria-busy={checking} aria-describedby={feedbackId} title="Run a local simulated care check">
-          {checking ? <span className="check-loading-label">CHECKING</span> : <span>CHECK<br />NOW</span>}
+          {checking || !ready ? <LeafLoader compact announce={false} label={checking ? "Checking" : "Loading"} /> : <span>CHECK<br />NOW</span>}
         </button>
       </div>
       <p className="check-feedback" id={feedbackId} role="status" aria-atomic="true">

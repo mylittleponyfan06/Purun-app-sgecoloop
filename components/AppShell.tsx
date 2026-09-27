@@ -1,22 +1,31 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Leaf, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import BottomNav from "./BottomNav";
 import OutdoorPulseProvider from "./OutdoorPulseProvider";
 import SimulationModal, { SimulationModeLabel } from "./SimulationModal";
+import AutoReadProvider, { AutoReadStatus } from "./AutoReadProvider";
+import CareAIProvider from "./CareAIProvider";
+import PlantChat from "./PlantChat";
+import { getAIConfiguration } from "@/lib/ai-config";
 
-export default function AppShell({ children }: { children: ReactNode }) {
+export default async function AppShell({ children }: { children: ReactNode }) {
+  await connection(); // Read the server feature flag at runtime, not at build time.
   return (
-    <div className="app-canvas">
+    <CareAIProvider config={getAIConfiguration()}><AutoReadProvider><div className="app-canvas">
       <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="app-header">
-        <Link href="/" className="brand" aria-label="Purun Care home">
-          <span className="brand-name">Purun<Sun aria-hidden="true" /></span>
+        <Link href="/" className="brand" aria-label="Purun Loop home">
+          <span className="brand-name">Purun Loop<Sun aria-hidden="true" /></span>
           <span className="brand-subtitle">Smart Wetland-Care Station</span>
         </Link>
-        <div className="header-status">
-          <span className="live-status"><span className="status-dot" />Auto-read <span aria-hidden="true">•</span> Live</span>
-          <SimulationModeLabel />
+        <div className="header-tools">
+          <div className="header-status">
+            <AutoReadStatus compact />
+            <SimulationModeLabel />
+          </div>
+          <PlantChat />
         </div>
       </header>
       <OutdoorPulseProvider>
@@ -28,6 +37,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <BottomNav />
       </OutdoorPulseProvider>
       <SimulationModal />
-    </div>
+    </div></AutoReadProvider></CareAIProvider>
   );
 }

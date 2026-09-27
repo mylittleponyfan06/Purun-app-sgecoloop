@@ -4,6 +4,7 @@ import HealthTrendChart from "@/components/HealthTrendChart";
 import { sunlightTrend, sunlightWindow } from "@/lib/mock-data";
 import { usePurunStore } from "@/store/usePurunStore";
 import DangerModeBanner from "./DangerModeBanner";
+import LeafLoader from "./LeafLoader";
 
 
 export default function TrendsPage() {
@@ -28,7 +29,7 @@ export default function TrendsPage() {
         currentScore={plantAssessment.score}
         reservoirLevel={currentReading.waterLevelPct}
         simulation={isSimulationMode}
-      /> : <p className="simulation-note" role="status">Restoring your local demo history…</p>}
+      /> : <LeafLoader label="Restoring your local history…" detail="Gathering the readings for your charts." />}
       <section className="trend-insight" aria-labelledby="trend-insight-heading">
         <span className="trend-insight-icon"><Sparkles size={23} aria-hidden="true" /></span>
         <div>

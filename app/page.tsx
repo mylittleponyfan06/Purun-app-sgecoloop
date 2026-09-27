@@ -10,16 +10,18 @@ import { usePurunStore } from "@/store/usePurunStore";
 import { getSensorConditions } from "@/lib/plant-rules";
 import { DemoControlsButton } from "@/components/SimulationModal";
 import DangerAlert from "@/components/DangerAlert";
+import { AutoReadStatus } from "@/components/AutoReadProvider";
+import { generateCareSummary } from "@/lib/care-summary";
 
 export default function HomePage() {
-  const { currentReading, currentAssessment: plantAssessment, isSimulationMode, autoReadInterval } = usePurunStore();
+  const { currentReading, currentAssessment: plantAssessment, isSimulationMode, carePayload } = usePurunStore();
   const condition = getSensorConditions(currentReading);
   return (
     <div className="page-content home-dashboard">
       <p className="demo-banner"><FlaskConical size={16} aria-hidden="true" /> Prototype demo — readings are currently simulated.</p>
       <div className="dashboard-heading">
         <h1>{plantAssessment.status === "danger" ? "A little care for today." : "A good day to grow."}</h1>
-        <span className="station-tag"><Leaf size={15} aria-hidden="true" /> Purun · Station 01</span>
+        <span className="station-tag"><Leaf size={15} aria-hidden="true" /> Purun Loop · Station 01</span>
         <DemoControlsButton />
       </div>
       <DangerAlert />
@@ -28,12 +30,7 @@ export default function HomePage() {
           <PlantHealthOrb score={plantAssessment.score} status={plantAssessment.status} />
           <div className="reading-schedule">
             <CheckNowButton />
-            <div className="schedule-copy">
-              <p className="auto-read-label"><span className="status-dot" /> {isSimulationMode ? "Manual demo reading" : "Auto-read ON"}</p>
-              {/* Fixed prototype labels, not a running countdown. */}
-              <p>{isSimulationMode ? `Auto-read interval: ${autoReadInterval} min · paused` : "Next read in 42 minutes"}</p>
-              <p>{isSimulationMode ? `Last applied: ${new Date(currentReading.timestamp).toLocaleString("en-SG", { timeZone: "Asia/Singapore", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} SGT` : "Last reading: 12 minutes ago"}</p>
-            </div>
+            <AutoReadStatus />
           </div>
         </div>
         <div className="readings-column">
@@ -48,7 +45,7 @@ export default function HomePage() {
           </section>
           <OutdoorPulseCard />
           {isSimulationMode && <p className="simulation-note">Simulated humidity: {currentReading.humidityPct}% · not included in the health score</p>}
-          <AiSummaryCard summary={isSimulationMode ? plantAssessment.summary : "Purun is healthy. Light is optimal. Reservoir will need a refill in about one day."} />
+          <AiSummaryCard care={carePayload ?? generateCareSummary(plantAssessment)} isSimulationMode={isSimulationMode} />
         </div>
       </div>
     </div>

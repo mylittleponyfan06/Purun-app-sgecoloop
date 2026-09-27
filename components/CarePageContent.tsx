@@ -5,6 +5,8 @@ import { usePurunStore } from "@/store/usePurunStore";
 import OutdoorPulseCard from "@/components/OutdoorPulseCard";
 import DangerModeBanner from "./DangerModeBanner";
 import { prioritizeCareActions } from "@/lib/care-actions";
+import { generateCareSummary } from "@/lib/care-summary";
+import { CareAIStatus } from "./CareAIProvider";
 
 
 const careIcons = { droplet: Droplets, sun: Sun, sparkles: Sparkles, wind: Wind };
@@ -16,8 +18,13 @@ const guideNotes: Record<string, string> = {
 };
 
 export default function CarePage() {
-  const { currentAssessment: plantAssessment, isSimulationMode } = usePurunStore();
-  const careActions = prioritizeCareActions(plantAssessment.actions.length ? plantAssessment.actions : routineCareActions);
+  const { currentAssessment: plantAssessment, isSimulationMode, carePayload } = usePurunStore();
+  const care = carePayload ?? generateCareSummary(plantAssessment);
+  const assessedActions = prioritizeCareActions(plantAssessment.actions);
+  // Keep existing guide IDs/icons for danger links; advice text comes from the payload.
+  const careActions = care.actions.length ? care.actions.map((action, index) => ({
+    ...assessedActions[index], title: action.title, description: action.detail, priority: action.priority,
+  })) : prioritizeCareActions(routineCareActions);
   return (
     <div className="page-content care-page">
       <header className="detail-heading">
@@ -30,10 +37,13 @@ export default function CarePage() {
         <span className="care-message-icon"><Sprout size={30} strokeWidth={1.5} aria-hidden="true" /></span>
         <div>
           <div className="summary-heading">
-            <h2 id="care-message-heading">{plantAssessment.status === "thriving" ? "Your Purun looks happy!" : plantAssessment.headline}</h2>
-            <span className="prototype-label">{isSimulationMode ? "Rules-based care · Prototype" : "AI care · Prototype summary"}</span>
+            <h2 id="care-message-heading">{care.headline}</h2>
+            <span className="prototype-label">{care.source === "ai-enhanced" ? "AI-enhanced explanation" : "Local care logic"}</span>
           </div>
-          <p>{plantAssessment.summary}</p>
+          <p>{care.summary}</p>
+          {isSimulationMode && <p className="care-summary-note">Advice based on a simulated reading.</p>}
+          <p className="care-summary-note">{care.nextCheckSuggestion}</p>
+          <CareAIStatus />
         </div>
       </section>
 
@@ -41,11 +51,11 @@ export default function CarePage() {
 
       <div className="care-detail-grid">
         <section className="care-actions" id="care-actions" aria-labelledby="care-actions-heading">
-          <h2 id="care-actions-heading" className="sr-only">Ways to care for your Purun</h2>
+          <h2 id="care-actions-heading" className={care.actions.length ? "sr-only" : "care-routine-heading"}>{care.actions.length ? "Ways to care for your Purun" : "Routine care guides"}</h2>
           {careActions.map((action, index) => {
             const Icon = careIcons[action.icon];
             return (
-              <details className={`care-action care-action-${action.icon}`} id={`care-${action.id}`} open={plantAssessment.status === "danger" && index === 0} key={action.id}>
+              <details className={`care-action care-action-${action.icon}`} id={`care-${action.id}`} open={care.status === "danger" && care.actions.length > 0 && index === 0} key={action.id}>
                 <summary>
                   <span className="care-action-icon"><Icon size={27} strokeWidth={1.6} aria-hidden="true" /></span>
                   <span className="care-action-copy">

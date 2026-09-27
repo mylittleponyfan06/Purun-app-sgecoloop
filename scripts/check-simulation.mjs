@@ -81,6 +81,56 @@ assert.equal(merge({ ...saved.state, currentReading: { ...applied, humidityPct: 
 assert.equal(merge({ ...saved.state, currentReading: null }, initial), initial);
 assert.equal(merge({ ...saved.state, history: [] }, initial).history.length, 1, "Always retain the current trend point");
 
+// Auto-read uses the same reading path and a single deadline, including delayed ticks.
+store.setState({ hasHydrated: true, isSimulationModalOpen: false });
+assert.equal(initial.autoReadEnabled, false);
+assert.equal(merge(saved.state, initial).autoReadEnabled, false, "Legacy saves stay manual");
+for (const minutes of [0.25, 0.5, 1, 60]) {
+  store.getState().setAutoReadInterval(minutes);
+  const start = Date.now();
+  store.getState().setAutoReadEnabled(true);
+  const state = store.getState();
+  assert.ok(state.nextReadAt >= start + minutes * 60000 && state.nextReadAt <= Date.now() + minutes * 60000);
+  const settings = JSON.parse(storage.get("purun-demo-state")).state;
+  assert.equal(settings.nextReadAt, undefined, "Deadlines are not persisted");
+  assert.equal(merge(settings, initial).autoReadInterval, minutes);
+  assert.equal(merge(settings, initial).autoReadEnabled, true);
+}
+store.getState().setAutoReadInterval(0.25);
+const beforeAuto = store.getState();
+store.getState().runAutoRead(beforeAuto.nextReadAt - 1);
+assert.equal(store.getState().currentReading, beforeAuto.currentReading, "No early read");
+// Make the deadline overdue without waiting or inventing future observation timestamps.
+store.setState({ nextReadAt: Date.now() - 90000 });
+store.getState().setSimulationModalOpen(true);
+store.getState().runAutoRead(Date.now());
+assert.equal(store.getState().currentReading, beforeAuto.currentReading, "Do not close an open modal");
+store.getState().setSimulationModalOpen(false);
+store.setState({ hasHydrated: false });
+store.getState().runAutoRead(Date.now());
+assert.equal(store.getState().currentReading, beforeAuto.currentReading, "Wait for hydration");
+store.setState({ hasHydrated: true });
+store.getState().runAutoRead(Date.now());
+const automatic = store.getState();
+assert.notEqual(automatic.currentReading.id, beforeAuto.currentReading.id);
+assert.equal(automatic.history.length, beforeAuto.history.length + 1, "Only one reading after a delay");
+assert.equal(automatic.currentAssessment.status, "danger");
+assert.equal(automatic.currentReading.waterLevelPct, beforeAuto.currentReading.waterLevelPct, "Ignore healthy slider draft");
+assert.equal(automatic.nextReadAt, Date.parse(automatic.currentReading.timestamp) + 15000);
+assert.equal(JSON.parse(storage.get("purun-demo-state")).state.history.at(-1).reading.id, automatic.currentReading.id);
+store.getState().runAutoRead(Date.now());
+assert.equal(store.getState().currentReading, automatic.currentReading, "Duplicate ticks do not duplicate readings");
+store.getState().setAutoReadEnabled(false);
+store.getState().runAutoRead(Date.now() + 3600000);
+assert.equal(store.getState().currentReading, automatic.currentReading, "Off disables reads");
+store.getState().setAutoReadInterval(0);
+store.getState().setAutoReadEnabled(true);
+assert.equal(store.getState().autoReadEnabled, false, "Manual cannot auto-read");
+assert.equal(store.getState().nextReadAt, null);
+assert.throws(() => store.getState().setAutoReadInterval(2), RangeError);
+assert.equal(merge({ ...saved.state, autoReadInterval: 2, autoReadEnabled: true }, initial).autoReadEnabled, false);
+assert.equal(merge({ ...saved.state, autoReadInterval: 0, autoReadEnabled: true }, initial).autoReadEnabled, false);
+
 for (let index = 0; index < 125; index++) store.getState().applySimulatedReading(scenarios["Thriving wetland"]);
 assert.equal(store.getState().history.length, 120, "History is bounded");
 const beforeInvalid = store.getState();

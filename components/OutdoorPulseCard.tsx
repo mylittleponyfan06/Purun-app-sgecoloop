@@ -2,6 +2,7 @@
 
 import { CloudRain, Leaf, Sparkles, Sun, Wind } from "lucide-react";
 import { useOutdoorPulse } from "./OutdoorPulseProvider";
+import LeafLoader from "./LeafLoader";
 
 const unavailableMessage = "Outdoor context is taking a sun break. Your local simulated care data is still available.";
 export default function OutdoorPulseCard({ compact = false }: { compact?: boolean }) {
@@ -17,7 +18,7 @@ export default function OutdoorPulseCard({ compact = false }: { compact?: boolea
       <aside className="outdoor-compact" aria-label="Outdoor cue" aria-live="polite" aria-busy={loading}>
         <Leaf size={18} aria-hidden="true" />
         <div>
-          <p><strong>Outdoor cue</strong> · {awaitingChoice ? waitingMessage : loading ? "Checking the sky…" : available ? `${pulse.careCue.title}. ${pulse.careCue.message}` : unavailableMessage}</p>
+          {loading ? <LeafLoader compact label="Checking the sky…" /> : <p><strong>Outdoor cue</strong> · {awaitingChoice ? waitingMessage : available ? `${pulse.careCue.title}. ${pulse.careCue.message}` : unavailableMessage}</p>}
           <p className="outdoor-honesty">{honesty}</p>
         </div>
       </aside>
@@ -33,11 +34,7 @@ export default function OutdoorPulseCard({ compact = false }: { compact?: boolea
       </header>
       <div aria-live="polite">
         {awaitingChoice ? <p className="outdoor-unavailable">{waitingMessage}</p> : loading ? (
-          <div className="outdoor-loading" role="status">
-            <span className="sr-only">Checking the sky…</span>
-            <div className="outdoor-skeleton-grid" aria-hidden="true"><span /><span /><span /></div>
-            <div className="outdoor-skeleton-cue" aria-hidden="true" />
-          </div>
+          <div className="outdoor-loading"><LeafLoader label="Checking the sky…" detail="Gathering weather, sunlight and air quality for your area." /></div>
         ) : available ? (
           <>
             <dl className="outdoor-facts">
