@@ -69,3 +69,36 @@ export const historicalReadings: SensorReading[] = Array.from(
     humidityPct: 70 + (index % 5),
   }),
 );
+
+// Illustrative scores only: sensor history does not contain health assessments.
+const sampleHealthScores = [74, 75, 75, 76, 78, 79, 78, 77, 76, 76, 77, 78, 80, 81, 81, 80, 79, 80, 81, 82, 83, 82, 81, 82];
+
+export const healthTrend = [
+  ...historicalReadings.map((reading, index) => ({
+    timestamp: Date.parse(reading.timestamp),
+    value: sampleHealthScores[index],
+  })),
+  { timestamp: snapshotTime, value: plantAssessment.score },
+];
+
+const chartReadings = [...historicalReadings, currentReading];
+
+export const reservoirTrend = chartReadings.map((reading) => ({
+  timestamp: Date.parse(reading.timestamp),
+  value: reading.waterLevelPct,
+}));
+
+// Show the most recent available daylight date in Singapore, without mixing days.
+const singaporeOffset = 8 * hourMs;
+const daylightReadings = chartReadings.filter((reading) => {
+  const hour = new Date(Date.parse(reading.timestamp) + singaporeOffset).getUTCHours();
+  return hour >= 6 && hour < 19;
+});
+const daylightDate = new Date(Date.parse(daylightReadings[daylightReadings.length - 1].timestamp) + singaporeOffset);
+const daylightStart = daylightDate.setUTCHours(0, 0, 0, 0) - singaporeOffset;
+
+export const sunlightWindow: [number, number] = [daylightStart + 6 * hourMs, daylightStart + 19 * hourMs];
+
+export const sunlightTrend = daylightReadings
+  .filter((reading) => Date.parse(reading.timestamp) >= sunlightWindow[0])
+  .map((reading) => ({ timestamp: Date.parse(reading.timestamp), value: reading.lightLux }));

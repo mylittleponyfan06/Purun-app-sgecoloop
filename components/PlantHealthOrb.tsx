@@ -7,11 +7,11 @@ export default function PlantHealthOrb({ score, status }: PlantHealthOrbProps) {
     <section className="plant-health-panel" aria-label="Plant health">
       <h2 className="orb-heading">Plant health</h2>
       <div className="orb-landscape">
-        <div className="health-orb">
+        <div className={`health-orb health-orb-${status}`}>
           <div className="orb-face">
             <p className="orb-score">{score}<span className="sr-only"> out of 100</span></p>
-            <p className="orb-status">{status.toUpperCase()}</p>
-            <p className="orb-caption" aria-hidden="true">a happy little wetland</p>
+            <p className="orb-status">{status === "danger" ? "CARE TODAY" : status.toUpperCase()}</p>
+            <p className="orb-caption" aria-hidden="true">{status === "thriving" ? "a happy little wetland" : status === "watch" ? "a little care goes a long way" : "time for a little care"}</p>
           </div>
         </div>
         <svg className="orb-reeds" viewBox="0 0 360 300" fill="none" aria-hidden="true" focusable="false">

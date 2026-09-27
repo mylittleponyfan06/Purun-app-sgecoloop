@@ -1,5 +1,18 @@
 export type PlantStatus = "thriving" | "watch" | "danger";
 
+// Outdoor context stays independent of the simulated planter readings.
+export type OutdoorPulse = {
+  available: boolean;
+  location: "Singapore" | "Your area";
+  timeZone: string;
+  updatedAt: string;
+  pm25: { value: number | null; status: "clean" | "moderate" | "elevated" | "unavailable"; label: string };
+  weather: { label: string; temperatureC: number | null; rainProbabilityPct: number | null };
+  sunlight: { label: string; bestWindow: string; shortwaveRadiationWm2: number | null };
+  careCue: { title: string; message: string; tone: "good" | "watch" | "caution" };
+  attribution: string;
+};
+
 export type SensorReading = {
   id: string;
   timestamp: string;
