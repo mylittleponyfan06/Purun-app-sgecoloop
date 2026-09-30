@@ -5,6 +5,16 @@ import { usePurunStore } from "@/store/usePurunStore";
 import { useCareAIEnabled } from "./CareAIProvider";
 import LeafLoader from "./LeafLoader";
 
+async function sendSignal(): Promise<boolean> {
+  try {
+    const url = `${process.env.NEXT_PUBLIC_RELAY_URL}/trigger?key=${encodeURIComponent(process.env.NEXT_PUBLIC_RELAY_KEY ?? "")}`;
+    const res = await fetch(url, { cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function CheckNowButton() {
   const ready = usePurunStore((state) => state.hasHydrated);
   const aiEnabled = useCareAIEnabled();
@@ -27,8 +37,11 @@ export default function CheckNowButton() {
     const initial = usePurunStore.getState();
     if (pendingCheck.current !== null || !initial.hasHydrated || initial.isSimulationModalOpen) return;
     setFeedback("checking");
-    // A short local interaction animation, not a request to a service or sensor.
-    pendingCheck.current = window.setTimeout(() => {
+
+    // Send the signal right away; it runs alongside the 700ms animation.
+    const signalSent = sendSignal();
+
+    pendingCheck.current = window.setTimeout(async () => {
       pendingCheck.current = null;
       const state = usePurunStore.getState();
       // Never overwrite a newer applied reading or interrupt an open demo modal.
@@ -38,9 +51,10 @@ export default function CheckNowButton() {
       }
       try {
         state.applySimulatedReading(state.currentReading);
-        setFeedback("success");
         // Local assessment is already visible; an optional rewrite cannot block it.
         void usePurunStore.getState().enhanceCareSummary(aiEnabled);
+        const ok = await signalSent;
+        setFeedback(ok ? "success" : "error");
       } catch {
         setFeedback("error");
       }
