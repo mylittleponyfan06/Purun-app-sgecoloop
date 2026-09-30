@@ -5,14 +5,14 @@ import { usePurunStore } from "@/store/usePurunStore";
 import { useCareAIEnabled } from "./CareAIProvider";
 import LeafLoader from "./LeafLoader";
 
-async function sendSignal(): Promise<boolean> {
-  try {
-    const url = `${process.env.NEXT_PUBLIC_RELAY_URL}/trigger?key=${encodeURIComponent(process.env.NEXT_PUBLIC_RELAY_KEY ?? "")}`;
-    const res = await fetch(url, { cache: "no-store" });
-    return res.ok;
-  } catch {
-    return false;
-  }
+function sendSignal() {
+  const base = (process.env.NEXT_PUBLIC_RELAY_URL ?? "").replace(/\/+$/, "");
+  const key = process.env.NEXT_PUBLIC_RELAY_KEY ?? "";
+  if (!base || !key) return; // not configured, send nothing
+  fetch(`${base}/trigger?key=${encodeURIComponent(key)}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => {});
 }
 
 export default function CheckNowButton() {
@@ -33,28 +33,22 @@ export default function CheckNowButton() {
     return () => window.clearTimeout(timeout);
   }, [feedback]);
 
-  function checkNow() {
+   function checkNow() {
     const initial = usePurunStore.getState();
     if (pendingCheck.current !== null || !initial.hasHydrated || initial.isSimulationModalOpen) return;
     setFeedback("checking");
-
-    // Send the signal right away; it runs alongside the 700ms animation.
-    const signalSent = sendSignal();
-
-    pendingCheck.current = window.setTimeout(async () => {
+    pendingCheck.current = window.setTimeout(() => {
       pendingCheck.current = null;
       const state = usePurunStore.getState();
-      // Never overwrite a newer applied reading or interrupt an open demo modal.
       if (state.currentReading.id !== initial.currentReading.id || state.isSimulationModalOpen) {
         setFeedback("idle");
         return;
       }
       try {
         state.applySimulatedReading(state.currentReading);
-        // Local assessment is already visible; an optional rewrite cannot block it.
+        sendSignal(); // <-- new: only fires when the check really went through
+        setFeedback("success");
         void usePurunStore.getState().enhanceCareSummary(aiEnabled);
-        const ok = await signalSent;
-        setFeedback(ok ? "success" : "error");
       } catch {
         setFeedback("error");
       }
