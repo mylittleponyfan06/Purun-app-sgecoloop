@@ -12,8 +12,8 @@ import type { AICheck, AIStatus } from "../lib/ai-status";
 let pendingExplanation: AbortController | null = null;
 
 export const simulationFields = [
-  { key: "lightLux", label: "Light intake", unit: "lux", min: 0, max: 40000, step: 500 },
-  { key: "pm25UgM3", label: "PM2.5", unit: "µg/m³", min: 0, max: 150, step: 1 },
+  { key: "lightLux", label: "Light intake", unit: "lux", min: 0, max: 120000, step: 500 },
+  { key: "pm25UgM3", label: "PM2.5", unit: "µg/m³", min: 0, max: 400, step: 1 },
   { key: "waterLevelPct", label: "Water level", unit: "%", min: 0, max: 100, step: 1 },
   { key: "waterTempC", label: "Water temperature", unit: "°C", min: 10, max: 45, step: 1 },
   { key: "humidityPct", label: "Humidity", unit: "%", min: 0, max: 100, step: 1 },

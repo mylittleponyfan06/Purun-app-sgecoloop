@@ -6,9 +6,14 @@ export function getSensorConditions(reading: SensorReading): { water: Condition;
   return {
     water: reading.waterLevelPct < 30 ? "danger" : reading.waterLevelPct < 50 ? "watch" : "good",
     temperature: reading.waterTempC < 18 || reading.waterTempC > 35 ? "danger" : reading.waterTempC < 22 || reading.waterTempC > 32 ? "watch" : "good",
-    light: reading.lightLux < 6000 ? "danger" : reading.lightLux < 12000 ? "watch" : "good",
+    light: reading.lightLux < 30000 || reading.lightLux > 80000 ? "danger" : reading.lightLux < 40000 || reading.lightLux > 70000 ? "watch" : "good",
     air: reading.pm25UgM3 > 55 ? "danger" : reading.pm25UgM3 >= 35 ? "watch" : "good",
   };
+}
+
+/** Label for a light reading that is not in the optimal band: "High light" above it, "Low light" below it. */
+export function getLightProblemLabel(lightLux: number): "High light" | "Low light" {
+  return lightLux > 70000 ? "High light" : "Low light";
 }
 
 /** Prototype experience-design rules for simulated readings, not a scientific diagnosis.
@@ -25,14 +30,15 @@ export function assessPlant(reading: SensorReading): PlantAssessment {
 
   const { water: waterCondition, temperature: temperatureCondition, light: lightCondition, air: airCondition } = getSensorConditions(reading);
 
+  const tooBright = light > 70000; // light advice depends on which side of the optimal band the reading is on
   // Equal-priority actions follow impact: water, light, water temperature, air.
   const conditions: { condition: Condition; maximum: number; reason: string; action: Omit<CareAction, "priority"> }[] = [
     { condition: waterCondition, maximum: 45,
       reason: waterCondition === "good" ? "The reservoir has a comfortable water level." : waterCondition === "danger" ? "The reservoir is very low and needs water now." : "The reservoir is getting low and will need a refill soon.",
       action: { id: "refill-reservoir", title: "Refill reservoir", description: "Top up the reservoir to the 50–100% prototype range, without overflowing it.", icon: "droplet" } },
     { condition: lightCondition, maximum: 25,
-      reason: lightCondition === "good" ? "Purun has plenty of bright daylight." : lightCondition === "danger" ? "Purun is receiving very little light." : "Purun could use brighter daylight.",
-      action: { id: "move-to-brighter-daylight", title: "Move to brighter daylight", description: "Move Purun to a brighter spot and aim for a simulated light reading of at least 12,000 lux.", icon: "sun" } },
+      reason: lightCondition === "good" ? "Purun has plenty of bright daylight." : tooBright ? (lightCondition === "danger" ? "The light is much too intense for Purun." : "The light is a little stronger than Purun's comfortable range.") : lightCondition === "danger" ? "Purun is receiving very little light." : "Purun could use brighter daylight.",
+      action: { id: "move-to-brighter-daylight", title: tooBright ? "Reduce strong light" : "Move to brighter daylight", description: tooBright ? "Move Purun out of harsh direct light and aim for a simulated light reading of 40,000–70,000 lux." : "Move Purun to a brighter spot and aim for a simulated light reading of 40,000–70,000 lux.", icon: "sun" } },
     { condition: temperatureCondition, maximum: 15,
       reason: temperatureCondition === "good" ? "The water temperature is in a comfortable range." : temperature < 22 ? "The water is cooler than Purun's comfortable range." : "The water is warmer than Purun's comfortable range.",
       action: { id: "check-water-temperature", title: "Check water temperature", description: temperature < 22 ? "Move the reservoir away from cold drafts and let the water return gradually to 22–32°C." : "Move the reservoir away from excess heat and let the water return gradually to 22–32°C.", icon: "droplet" } },
