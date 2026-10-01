@@ -17,8 +17,10 @@ export function getDangerAdvice(assessment: PlantAssessment) {
     "check-water-temperature": "Water temperature — check today",
     "reduce-haze-exposure": "Haze nearby — reduce exposure",
   };
+  // plant-rules.ts gives the light action the title "Reduce strong light" when the reading is too bright.
+  const tooBright = action?.id === "move-to-brighter-daylight" && action.title === "Reduce strong light";
   return {
-    headline: action ? headlines[action.id] ?? action.title : "A little care is needed today",
+    headline: action ? (tooBright ? "Light is strong — find a shadier spot" : headlines[action.id] ?? action.title) : "A little care is needed today",
     explanation: assessment.reasons.join(" ") || assessment.summary,
     actionLabel: action?.title ?? "View care steps",
     href: action ? `/care#care-${encodeURIComponent(action.id)}` : "/care#care-actions",
